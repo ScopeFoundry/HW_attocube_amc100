@@ -20,6 +20,10 @@ class AttoCubeAMC100StageHW(HardwareComponent):
         self.lock = QLock(mode=0) # nonre-entrant
         
         for axis in self.ax_names:
+            # Skip axis if disable in __init__ ax_names
+            if axis == '_':
+                continue
+            
             self.settings.New(axis + "_position", 
                                dtype=float,
                                ro=True,
@@ -114,28 +118,28 @@ class AttoCubeAMC100StageHW(HardwareComponent):
                     lambda a=axis_num: self.amc.move.getPosition(a))
         
                 self.settings.get_lq(axis_name + "_target_position").connect_to_hardware(
-                    read_func = lambda a=axis_num: self.amc.move.getTargetPosition(a),
-                    write_func = lambda new_pos, a=axis_num: self.amc.move.setTargetPosition(a, new_pos))
+                    read_func = lambda a=axis_num: self.amc.control.getControlTargetPosition(a)[1],
+                    write_func = lambda new_pos, a=axis_num: self.amc.control.setControlTargetPosition(a, new_pos))
                 
                 self.settings.get_lq(axis_name + "_step_voltage").connect_to_hardware(
-                    read_func = lambda a=axis_num: self.amc.control.getControlAmplitudeInV(a),
+                    read_func = lambda a=axis_num: self.amc.control.getControlAmplitudeInV(a)[1],
                     write_func = lambda volts, a=axis_num: self.amc.control.setControlAmplitude(a,volts))
                     
                 self.settings.get_lq(axis_name + "_electrically_connected").connect_to_hardware(
                     lambda a=axis_num: self.amc.status.getStatusConnected(a))
                 
                 self.settings.get_lq(axis_name + "_reference_found").connect_to_hardware(
-                    lambda a=axis_num: self.amc.status.getStatusReference(a))
+                    lambda a=axis_num: self.amc.status.getStatusReference(a)[1])
 
                 self.settings.get_lq(axis_name + "_reference_position").connect_to_hardware(
-                    lambda a=axis_num: self.amc.control.getReferencePositionInmm(a))
+                    lambda a=axis_num: self.amc.control.getReferencePositionInmm(a)[1])
                 
                 self.settings.get_lq(axis_name + "_enable_output").connect_to_hardware(
-                    read_func  = lambda a=axis_num: self.amc.getOutput(a),
+                    read_func  = lambda a=axis_num: self.amc.getControlOutput(a)[1],
                     write_func = lambda enable, a=axis_num: self.amc.control.setControlOutput(a, enable))
                     
                 self.settings.get_lq(axis_name + "_enable_closedloop").connect_to_hardware(
-                    read_func = lambda a=axis_num: self.amc.control.getControlMove(a),
+                    read_func = lambda a=axis_num: self.amc.control.getControlMove(a)[1],
                     write_func = lambda enable, a=axis_num: self.amc.control.setControlMove(a, enable)
                     )
                 
@@ -150,34 +154,36 @@ class AttoCubeAMC100StageHW(HardwareComponent):
                 #    read_func = lambda a=axis_num: self.ecc100.read_target_status(a) 
                 #    )
 
-                if self.settings['pro_mode']:
+                #if self.settings['pro_mode']:
+                if True:
 #                     self.x_openloop_voltage.hardware_read_func = lambda: self.ecc100.read_openloop_voltage(X_AXIS)
 #                     self.x_openloop_voltage.hardware_set_func = lambda x: self.ecc100.write_openloop_voltage(X_AXIS, x)
                                     
                     self.settings.get_lq(axis_name + "_eot_stop").connect_to_hardware(
-                        read_func = lambda a=axis_num: self.amc.control.getControlEotOutputDeactive(a),
+                        read_func = lambda a=axis_num: self.amc.control.getControlEotOutputDeactive(a)[1],
                         write_func = lambda enable, a=axis_num: self.amc.control.setControlEotOutputDeactive(a,enable))
                     self.settings.get_lq(axis_name + "_eot_forward").connect_to_hardware(
-                        lambda a=axis_num: self.amc.status.getStatusEotFwd(a))
+                        lambda a=axis_num: self.amc.status.getStatusEotFwd(a)[1])
                     self.settings.get_lq(axis_name + "_eot_back").connect_to_hardware(
-                        lambda a=axis_num: self.amc.status.getStatusEotBkwd(a))
+                        lambda a=axis_num: self.amc.status.getStatusEotBkwd(a)[1])
                     self.settings.get_lq(axis_name + "_frequency").connect_to_hardware(
-                        read_func = lambda a=axis_num: self.amc.control.getControlFrequencyinHz(a),
+                        read_func = lambda a=axis_num: self.amc.control.getControlFrequencyinHz(a)[1],
                         write_func = lambda freq, a=axis_num: self.amc.control.setControlFrequencyinHz(a,freq))
                     self.settings.get_lq(axis_name + "_auto_reference_update").connect_to_hardware(
-                        read_func = lambda a=axis_num: self.amc.control.getControlReferenceAutoUpdate(a),
+                        read_func = lambda a=axis_num: self.amc.control.getControlReferenceAutoUpdate(a)[1],
                         write_func = lambda enable, a=axis_num: self.amc.control.setControlReferenceAutoUpdate(a,enable))
                     self.settings.get_lq(axis_name + "_auto_reference_reset").connect_to_hardware(
-                        read_func = lambda a=axis_num: self.amc.control.getControlAutoReset(a),
+                        read_func = lambda a=axis_num: self.amc.control.getControlAutoReset(a)[1],
                         write_func = lambda enable, a=axis_num: self.amc.control.setControlAutoReset(a,enable))
                         
                 self.settings.get_lq(axis_name + "_actor_type").connect_to_hardware(
-                    lambda a=axis_num: self.amc.control.getActorType(a))
+                    lambda a=axis_num: self.amc.control.getActorType(a)[1])
                 self.settings.get_lq(axis_name + "_actor_name").connect_to_hardware(
-                    lambda a=axis_num: self.amc.control.getActorName(a))
+                    lambda a=axis_num: self.amc.control.getActorName(a)[1])
 
         self.read_from_hardware()
 
+# TODO
 #         # update units based on Actor type
 #         for axis_num, axis_name in enumerate(self.ax_names):
 #             if axis_name != "_":
@@ -281,10 +287,6 @@ class AttoCubeAMC100StageHW(HardwareComponent):
         - 1 continuous motion start in Backward (-) direction
         0   stop continuous motion
         
-        Int32 NCB_API ECC_controlContinousFwd( Int32 deviceHandle,
-                                       Int32 axis,
-                                       Bln32* enable,
-                                       Bln32 set );
         """
         if direction > 0:
             with self.lock:
