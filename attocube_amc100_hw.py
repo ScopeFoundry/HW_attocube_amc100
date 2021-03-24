@@ -90,7 +90,7 @@ class AttoCubeAMC100StageHW(HardwareComponent):
             # Target Status is NCB_FeatureNotAvailable
             #self.settings.New(axis + "_target_status", dtype=bool, ro=True)
 
-        self.settings.New('ip_address', dtype=str, initial='192.168.1.105')
+        self.settings.New('ip_address', dtype=str, initial='192.168.1.1')
             
             
     def connect(self):
@@ -115,11 +115,11 @@ class AttoCubeAMC100StageHW(HardwareComponent):
                 # connect logged quantities
                 
                 self.settings.get_lq(axis_name + "_position").connect_to_hardware(
-                    lambda a=axis_num: self.amc.move.getPosition(a))
+                    lambda a=axis_num: 1e-6*self.amc.move.getPosition(a)[1])
         
                 self.settings.get_lq(axis_name + "_target_position").connect_to_hardware(
-                    read_func = lambda a=axis_num: self.amc.control.getControlTargetPosition(a)[1],
-                    write_func = lambda new_pos, a=axis_num: self.amc.control.setControlTargetPosition(a, new_pos))
+                    read_func = lambda a=axis_num: 1e-6*self.amc.move.getControlTargetPosition(a)[1],
+                    write_func = lambda new_pos, a=axis_num: self.amc.move.setControlTargetPosition(a, 1e6*new_pos))
                 
                 self.settings.get_lq(axis_name + "_step_voltage").connect_to_hardware(
                     read_func = lambda a=axis_num: self.amc.control.getControlAmplitudeInV(a)[1],
@@ -135,7 +135,7 @@ class AttoCubeAMC100StageHW(HardwareComponent):
                     lambda a=axis_num: self.amc.control.getReferencePositionInmm(a)[1])
                 
                 self.settings.get_lq(axis_name + "_enable_output").connect_to_hardware(
-                    read_func  = lambda a=axis_num: self.amc.getControlOutput(a)[1],
+                    read_func  = lambda a=axis_num: self.amc.control.getControlOutput(a)[1],
                     write_func = lambda enable, a=axis_num: self.amc.control.setControlOutput(a, enable))
                     
                 self.settings.get_lq(axis_name + "_enable_closedloop").connect_to_hardware(
@@ -143,11 +143,13 @@ class AttoCubeAMC100StageHW(HardwareComponent):
                     write_func = lambda enable, a=axis_num: self.amc.control.setControlMove(a, enable)
                     )
                 
-                #FIXME
-#                 self.settings.get_lq(axis_name + "_continuous_motion").connect_to_hardware(
-#                     read_func = lambda a=axis_num: self.ecc100.(a),
-#                     write_func = lambda dir, a=axis_num: self.ecc100.start_continuous_motion(a, dir)
-#                     )
+                # FIXME
+                # currently this fails on firmware 0.2.36
+                # JSON error in {'code': -32601, 'message': 'MethodNotFound'}
+                self.settings.get_lq(axis_name + "_continuous_motion").connect_to_hardware(
+                     read_func = lambda a=axis_num: self.read_continuous_motion(axis_num),
+                     write_func = lambda dir_, a=axis_num: self.start_continuous_motion(a, dir_)
+                     )
                                     
                 # Target Status is NCB_FeatureNotAvailable
                 #self.settings.get_lq(axis_name + "_target_status").connect_to_hardware(
@@ -160,14 +162,14 @@ class AttoCubeAMC100StageHW(HardwareComponent):
 #                     self.x_openloop_voltage.hardware_set_func = lambda x: self.ecc100.write_openloop_voltage(X_AXIS, x)
                                     
                     self.settings.get_lq(axis_name + "_eot_stop").connect_to_hardware(
-                        read_func = lambda a=axis_num: self.amc.control.getControlEotOutputDeactive(a)[1],
-                        write_func = lambda enable, a=axis_num: self.amc.control.setControlEotOutputDeactive(a,enable))
+                        read_func = lambda a=axis_num: self.amc.move.getControlEotOutputDeactive(a)[1],
+                        write_func = lambda enable, a=axis_num: self.amc.move.setControlEotOutputDeactive(a,enable))
                     self.settings.get_lq(axis_name + "_eot_forward").connect_to_hardware(
                         lambda a=axis_num: self.amc.status.getStatusEotFwd(a)[1])
                     self.settings.get_lq(axis_name + "_eot_back").connect_to_hardware(
                         lambda a=axis_num: self.amc.status.getStatusEotBkwd(a)[1])
                     self.settings.get_lq(axis_name + "_frequency").connect_to_hardware(
-                        read_func = lambda a=axis_num: self.amc.control.getControlFrequencyinHz(a)[1],
+                        read_func = lambda a=axis_num: self.amc.control.getControlFrequencyInHz(a)[1],
                         write_func = lambda freq, a=axis_num: self.amc.control.setControlFrequencyinHz(a,freq))
                     self.settings.get_lq(axis_name + "_auto_reference_update").connect_to_hardware(
                         read_func = lambda a=axis_num: self.amc.control.getControlReferenceAutoUpdate(a)[1],
@@ -290,14 +292,31 @@ class AttoCubeAMC100StageHW(HardwareComponent):
         """
         if direction > 0:
             with self.lock:
-                self.amc.control.setControlContinuousFwd(axis_num, enable=True)
+                self.amc.move.setControlContinuousFwd(axis_num, enable=True)
         elif direction < 0:
             with self.lock:
-                self.amc.control.setControlContinuousBkwd(axis_num, enable=True)
+                self.amc.move.setControlContinuousBkwd(axis_num, enable=True)
         else:
             self.stop_continous_motion(axis_num)
 
     def stop_continous_motion(self, axis_num):
         with self.lock:
-            self.amc.control.setControlContinuousFwd(axis_num, enable=False)
+            self.amc.move.setControlContinuousFwd(axis_num, enable=False)
+
+    def read_continuous_motion(self, axis_num):
+        """ returns +1, 0, or -1
+         + 1 continuous motion happening in Forward  (+) direction
+         - 1 continuous motion happening in Backward (-) direction
+           0 continuous motion stopped
+        """
+
+        fwd = self.amc.move.getControlContinuousFwd(axis_num)[1]
+        if fwd:
+            return +1
+
+        bkwd = self.amc.move.getControlContinuousBkwd(axis_num)[1]
+        if bkwd:
+            return -1
         
+        # No fwd or bkwd return 0
+        return 0

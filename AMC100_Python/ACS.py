@@ -73,6 +73,7 @@ class Device(object):
         with self.lock:
             self.sendRequest(method, params)
             resp = self.getResponse()
+        #print("request", method, resp)
         return resp
 
     def printError(self, errorNumber):
